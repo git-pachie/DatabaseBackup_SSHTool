@@ -1,0 +1,66 @@
+## .NET
+bin/
+obj/
+*.dll
+*.pdb
+*.user
+*.suo
+*.cache
+*.log
+*.bak
+*.zip
+
+## Visual Studio
+.vs/
+*.rsuser
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.aps
+*.vc.db
+*.vc.db3
+*.vc.opendb
+*.opensdf
+*.sdf
+*.opendb
+*.VC.db
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+nuget.exe
+packages/
+
+## Build results
+[Dd]ebugPublic/
+[Rr]eleasePublic/
+[Rr]eleases/
+*.[Pp]ublish.xml
+*.azurePubxml
+*.pubxml
+*.publishproj
+PublishProfiles/
+*.publishsettings
+*.publishproj
+
+## User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## JetBrains Rider
+.idea/
+
+## VS Code
+.vscode/
