@@ -17,15 +17,16 @@ A configurable .NET 9 C# console application that backs up selected Microsoft SQ
 SqlBackupManager/
   src/SqlBackupManager/
     Program.cs                     # Entry point: config, DI, Serilog, exit codes
-    appsettings.json               # Configuration (non-secret values only)
-    Configuration/                  # Strongly typed options
-    Models/                         # Result types and enums
-    Interfaces/                     # Service contracts (testable)
-    Services/                       # Implementations: SQL, ZIP, SFTP, Email
-    ErrorHandling/                  # Centralized exception formatting + redaction
-    Orchestration/                  # BackupJobRunner: per-database pipeline
-    Utilities/                      # File name + path validation helpers
-  tests/SqlBackupManager.Tests/     # xUnit + Moq tests
+    appsettings.json               # Non-secret configuration (committed)
+    secrets.sample.json            # TEMPLATE for user secrets (placeholders only)
+    Configuration/                 # Strongly typed options
+    Models/                        # Result types and enums
+    Interfaces/                    # Service contracts (testable)
+    Services/                      # Implementations: SQL, ZIP, SFTP, Email
+    ErrorHandling/                 # Centralized exception formatting + redaction
+    Orchestration/                 # BackupJobRunner: per-database pipeline
+    Utilities/                     # File name + path validation helpers
+  tests/SqlBackupManager.Tests/    # xUnit + Moq tests
   README.md
 ```
 
@@ -35,18 +36,25 @@ SqlBackupManager/
 |---|---|
 | `Microsoft.Data.SqlClient` | SQL Server backup commands |
 | `SSH.NET` | SFTP upload with host-key verification |
-| `MailKit` | SMTP email with TLS modes |
+| `MailKit` | SMTP email (`UseSsl` toggles STARTTLS / implicit SSL) |
 | `Serilog` + `Serilog.Sinks.File` | Per-run logging |
+| `Microsoft.Extensions.Configuration.UserSecrets` | Loads local user secrets |
 
 ## Configuration
 
-Configuration is split across three layers:
+### Where each setting lives
 
-1. **`appsettings.json`** — non-sensitive config (databases, paths, timeouts). Safe to commit.
-2. **dotnet user secrets** — sensitive config (SQL connection string, SFTP settings, email/SMTP settings). Stored locally, never committed.
-3. **Environment variables** — passwords and passphrases only.
+Configuration sources are loaded in this order. **A later source overrides an earlier one.**
 
-### appsettings.json (non-sensitive, committed)
+| Order | Source | What goes here | Committed to git? |
+|---|---|---|---|
+| 1 | `appsettings.json` | Databases, backup paths, timeouts, ZIP/log directories | Yes |
+| 2 | dotnet user secrets | SQL connection string, **all** SFTP settings, **all** Email settings, **all passwords** | **No** |
+| 3 | Environment variables | Optional overrides of any key (see below) | No |
+
+All passwords (`Sftp:Password`, `Sftp:KeyPassphrase`, `Email:SmtpPassword`, `SqlServer:Password`) are stored in **user secrets**, next to the rest of their section. Environment variables are not required.
+
+### 1. appsettings.json (non-sensitive)
 
 Contains only paths, database names, and timeouts:
 
@@ -66,22 +74,33 @@ Contains only paths, database names, and timeouts:
 }
 ```
 
-### dotnet user secrets (sensitive, local only)
+### 2. dotnet user secrets (sensitive)
 
-The SQL connection string, SFTP settings, and Email/SMTP settings are stored in .NET user secrets, which live in `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json` and are never committed to source control.
+Secrets are stored in `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json` and are never committed to source control.
 
-A sample secrets file is provided at `src/SqlBackupManager/secrets.sample.json`. Copy its structure to set up your own secrets.
+> **All values below are PLACEHOLDERS.** `sftp.example.com`, `backupuser`, `your-app@gmail.com`, `dba@example.com`, `your-sftp-password`, `your-gmail-app-password` and the fingerprint are examples. Replace every one with your real value before running.
+
+> **User secrets are NOT encrypted.** They are plain text in your Windows profile. They keep secrets out of git, nothing more. Do not treat them as a vault.
+
+> **User secrets belong to one Windows account.** They are only visible to the account that ran `dotnet user-secrets set`. If SQL Server Agent runs the job under a proxy account, set the secrets while logged in as that account (or use environment variables, see below).
+
+A template file is provided at `src/SqlBackupManager/secrets.sample.json`. It is a reference only. The application does **not** read it.
 
 #### Setup
 
-From the project directory (`src/SqlBackupManager`):
+Run from `src/SqlBackupManager`:
 
 ```powershell
-# Initialize user secrets (creates a UserSecretsId in the .csproj)
+# Initialize user secrets (adds a UserSecretsId to the .csproj; already done in this repo)
 dotnet user-secrets init
 
-# Set each secret value using dotnet user-secrets set
+# --- SQL Server ---
 dotnet user-secrets set "SqlServer:ConnectionString" "Server=SQLSERVER01;Database=master;Integrated Security=True;Encrypt=True;TrustServerCertificate=False;"
+# Only if using SQL authentication instead of Integrated Security:
+# dotnet user-secrets set "SqlServer:Username" "sql-user"
+# dotnet user-secrets set "SqlServer:Password" "sql-password"
+
+# --- SFTP ---
 dotnet user-secrets set "Sftp:Host" "sftp.example.com"
 dotnet user-secrets set "Sftp:Port" "22"
 dotnet user-secrets set "Sftp:Username" "backupuser"
@@ -89,6 +108,11 @@ dotnet user-secrets set "Sftp:Authentication" "Auto"
 dotnet user-secrets set "Sftp:HostKeyFingerprint" "SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT"
 dotnet user-secrets set "Sftp:RemoteDirectory" "/database-backups/sqlserver/"
 dotnet user-secrets set "Sftp:Password" "your-sftp-password"
+# Only if using a private key instead of a password:
+# dotnet user-secrets set "Sftp:PrivateKeyPath" "C:\keys\id_ed25519"
+# dotnet user-secrets set "Sftp:KeyPassphrase" "key-passphrase"
+
+# --- Email (Gmail example) ---
 dotnet user-secrets set "Email:Enabled" "true"
 dotnet user-secrets set "Email:SmtpHost" "smtp.gmail.com"
 dotnet user-secrets set "Email:SmtpPort" "587"
@@ -103,7 +127,7 @@ dotnet user-secrets set "Email:SendOnFailure" "true"
 dotnet user-secrets set "Email:AttachLogFile" "true"
 ```
 
-Verify they are set:
+Verify what is set (this prints values in plain text):
 
 ```powershell
 dotnet user-secrets list
@@ -114,16 +138,20 @@ dotnet user-secrets list
 ```json
 {
   "SqlServer": {
-    "ConnectionString": "Server=SQLSERVER01;Database=master;Integrated Security=True;Encrypt=True;TrustServerCertificate=False;"
+    "ConnectionString": "Server=SQLSERVER01;Database=master;Integrated Security=True;Encrypt=True;TrustServerCertificate=False;",
+    "Username": null,
+    "Password": null
   },
   "Sftp": {
     "Host": "sftp.example.com",
     "Port": 22,
     "Username": "backupuser",
     "Authentication": "Auto",
+    "PrivateKeyPath": null,
     "HostKeyFingerprint": "SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT",
     "RemoteDirectory": "/database-backups/sqlserver/",
-    "Password": "your-sftp-password"
+    "Password": "your-sftp-password",
+    "KeyPassphrase": null
   },
   "Email": {
     "Enabled": true,
@@ -134,6 +162,7 @@ dotnet user-secrets list
     "Recipients": ["dba@example.com", "it-support@example.com"],
     "SmtpUsername": "your-app@gmail.com",
     "SmtpPassword": "your-gmail-app-password",
+    "SkipCertificateRevocationCheck": true,
     "SendOnSuccess": true,
     "SendOnFailure": true,
     "AttachLogFile": true
@@ -141,18 +170,44 @@ dotnet user-secrets list
 }
 ```
 
-### Environment Variables (optional fallback)
+#### SFTP authentication
 
-Passwords are stored in user secrets alongside the rest of the SFTP, Email, and SQL config. The environment variables below are an optional fallback for production deployments where user secrets are not available (e.g. running as a service).
+- `Sftp:PrivateKeyPath` set: key authentication (`Sftp:KeyPassphrase` if the key has one).
+- `Sftp:PrivateKeyPath` empty: password authentication using `Sftp:Password`.
+- The app never falls back to a password if key authentication fails.
 
-> **Gmail note:** Gmail requires an **App Password** (not your account password) when 2FA is enabled. Generate one at https://myaccount.google.com/apppasswords. Use your Gmail address as both `SmtpUsername` and `From`. Set `UseSsl: true` — port 587 uses STARTTLS automatically.
+#### SFTP host key fingerprint
 
-| Variable | Required When | Description |
-|---|---|---|
-| `Sftp__Password` | SFTP password auth | SFTP password (if not using user secrets) |
-| `Sftp__KeyPassphrase` | SFTP key auth + passphrase | SSH private key passphrase |
-| `Sql__Password` | SQL Server username auth | SQL Server password |
-| `Email__SmtpPassword` | SMTP username configured | SMTP password |
+Host key verification is mandatory and cannot be disabled. `Sftp:HostKeyFingerprint` must match the server's SHA256 fingerprint. The `SHA256:` prefix is optional.
+
+Get the real value from the server administrator, or from a machine you trust:
+
+```powershell
+ssh-keyscan -t ed25519 sftp.example.com | ssh-keygen -lf -
+```
+
+If the value does not match, the connection is rejected and the log shows `SFTP server host key fingerprint (SHA256): ...`. **Do not paste that value in blindly.** Confirm it with the server owner first, otherwise the check protects nothing.
+
+#### Email (SMTP) settings
+
+| Setting | Meaning |
+|---|---|
+| `Email:UseSsl` | `true` + port `465` = implicit SSL. `true` + any other port (e.g. `587`) = STARTTLS. `false` = no encryption. |
+| `Email:SmtpUsername` / `Email:SmtpPassword` | If `SmtpUsername` is set, the app authenticates and `SmtpPassword` is required. |
+| `Email:SkipCertificateRevocationCheck` | Default `true`. Skips only the CRL/OCSP revocation lookup, for networks that cannot reach the revocation servers. The certificate chain, expiry and hostname are still validated. Set to `false` for strict checking. |
+
+> **Gmail:** use an **App Password**, not your account password. 2-Step Verification must be on. Create one at https://myaccount.google.com/apppasswords. Use your Gmail address as both `SmtpUsername` and `From`.
+
+### 3. Environment variables (optional override)
+
+Not required. Because environment variables are loaded last, any key can be overridden by an environment variable. Use `__` (double underscore) in place of `:`.
+
+| Environment variable | Overrides secret |
+|---|---|
+| `Sftp__Password` | `Sftp:Password` |
+| `Sftp__KeyPassphrase` | `Sftp:KeyPassphrase` |
+| `SqlServer__Password` | `SqlServer:Password` |
+| `Email__SmtpPassword` | `Email:SmtpPassword` |
 
 ### Cross-machine file handling
 
@@ -197,18 +252,20 @@ Configure a SQL Server Agent job with a **CmdExec** job step pointing to the pub
 
 ### Steps
 
-1. Publish the self-contained executable to a folder accessible from the SQL Server host (or the machine running the Agent), e.g. `C:\SqlBackupManager\publish\SqlBackupManager.exe`.
-2. Copy `appsettings.json` next to the executable.
-3. Set environment variables for secrets on the account running the Agent job (or configure the CmdExec proxy). Use a **SQL Server Agent proxy** with a credential mapped to a Windows domain account that has:
+1. Publish the self-contained executable to a folder accessible from the machine running the job, e.g. `C:\SqlBackupManager\publish\SqlBackupManager.exe`.
+2. Keep `appsettings.json` next to the executable.
+3. Create a **SQL Server Agent proxy** with a credential mapped to a Windows account that has:
    - Read access to the UNC backup share
    - Write access to the local ZIP and log directories
-   - Access to the SFTP server
-   - Access to the SMTP server
-4. Create a SQL Server Agent job:
+   - Access to the SFTP server and the SMTP server
+4. **Provide the secrets to that proxy account.** User secrets are stored per Windows account, so either:
+   - log in as the proxy account once and run the `dotnet user-secrets set` commands from the Setup section (requires the .NET SDK on that machine), or
+   - set the environment variables from the table above for that account.
+5. Create a SQL Server Agent job:
    - Type: **Operating system (CmdExec)**
-   - Run as: **The proxy account** (not the SQL Server service account unless it has the above permissions)
+   - Run as: **the proxy account** (not the SQL Server service account unless it has the permissions above)
    - Command: `C:\SqlBackupManager\publish\SqlBackupManager.exe`
-5. Set a schedule (e.g. daily at 2:00 AM).
+6. Set a schedule (e.g. daily at 2:00 AM).
 
 ### Sample CmdExec job-step command
 
@@ -230,10 +287,12 @@ SQL Server Agent monitors nonzero exit codes as job failure.
 
 ## Security Notes
 
-- **Never** put secrets in `appsettings.json` or commit them to source control.
+- **Never** put secrets in `appsettings.json` or commit them to source control. `secrets.sample.json` must only ever contain placeholders.
+- User secrets are plain text on disk. Restrict access to the Windows profile that holds them.
 - **Always** verify the SFTP host key fingerprint against a trusted out-of-band value.
 - **Never** use `TrustServerCertificate=True` as a production default for SQL connections.
-- ZIP files are **not** encrypted — use encryption at rest and in transit for backup files.
+- `Email:SkipCertificateRevocationCheck` defaults to `true`. Set it to `false` if your network can reach the revocation servers and you want strict checking.
+- ZIP files are **not** encrypted. Use encryption at rest and in transit for backup files.
 - Passwords, private keys, tokens, and connection string secrets are redacted from all logs and email summaries.
 - The application does not delete `.bak`, `.zip`, or log files. A separate job handles cleanup/retention.
 
