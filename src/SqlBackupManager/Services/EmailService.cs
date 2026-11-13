@@ -230,13 +230,13 @@ public sealed class EmailService : IEmailService
     {
         using var client = new SmtpClient();
 
-        var secureOption = _options.Security.ToLowerInvariant() switch
-        {
-            "none" => SecureSocketOptions.None,
-            "starttls" => SecureSocketOptions.StartTls,
-            "ssltls" => SecureSocketOptions.SslOnConnect,
-            _ => SecureSocketOptions.StartTls
-        };
+        // Map UseSsl boolean to MailKit SecureSocketOptions based on port
+        // Port 465 = implicit SSL, Port 587 = STARTTLS, other = STARTTLS when UseSsl
+        var secureOption = _options.UseSsl
+            ? _options.SmtpPort == 465
+                ? SecureSocketOptions.SslOnConnect
+                : SecureSocketOptions.StartTls
+            : SecureSocketOptions.None;
 
         await client.ConnectAsync(_options.SmtpHost, _options.SmtpPort, secureOption, cancellationToken);
 

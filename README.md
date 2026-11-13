@@ -92,7 +92,7 @@ dotnet user-secrets set "Sftp:Password" "your-sftp-password"
 dotnet user-secrets set "Email:Enabled" "true"
 dotnet user-secrets set "Email:SmtpHost" "smtp.gmail.com"
 dotnet user-secrets set "Email:SmtpPort" "587"
-dotnet user-secrets set "Email:Security" "StartTls"
+dotnet user-secrets set "Email:UseSsl" "true"
 dotnet user-secrets set "Email:From" "your-app@gmail.com"
 dotnet user-secrets set "Email:SmtpUsername" "your-app@gmail.com"
 dotnet user-secrets set "Email:SmtpPassword" "your-gmail-app-password"
@@ -129,7 +129,7 @@ dotnet user-secrets list
     "Enabled": true,
     "SmtpHost": "smtp.gmail.com",
     "SmtpPort": 587,
-    "Security": "StartTls",
+    "UseSsl": true,
     "From": "your-app@gmail.com",
     "Recipients": ["dba@example.com", "it-support@example.com"],
     "SmtpUsername": "your-app@gmail.com",
@@ -145,7 +145,7 @@ dotnet user-secrets list
 
 Passwords are stored in user secrets alongside the rest of the SFTP, Email, and SQL config. The environment variables below are an optional fallback for production deployments where user secrets are not available (e.g. running as a service).
 
-> **Gmail note:** Gmail requires an **App Password** (not your account password) when 2FA is enabled. Generate one at https://myaccount.google.com/apppasswords. Use your Gmail address as both `SmtpUsername` and `From`. Port 587 uses STARTTLS (`Security: "StartTls"`).
+> **Gmail note:** Gmail requires an **App Password** (not your account password) when 2FA is enabled. Generate one at https://myaccount.google.com/apppasswords. Use your Gmail address as both `SmtpUsername` and `From`. Set `UseSsl: true` — port 587 uses STARTTLS automatically.
 
 | Variable | Required When | Description |
 |---|---|---|

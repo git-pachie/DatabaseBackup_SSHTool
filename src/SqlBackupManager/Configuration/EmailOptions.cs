@@ -14,9 +14,10 @@ public sealed class EmailOptions
     public int SmtpPort { get; set; } = 587;
 
     /// <summary>
-    /// TLS mode: "None", "StartTls", or "SslTls".
+    /// When true, enables SSL/TLS encryption. On port 587 uses STARTTLS;
+    /// on port 465 uses implicit SSL.
     /// </summary>
-    public string Security { get; set; } = "StartTls";
+    public bool UseSsl { get; set; } = true;
 
     public string From { get; set; } = string.Empty;
 
