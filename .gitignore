@@ -64,3 +64,6 @@ PublishProfiles/
 
 ## VS Code
 .vscode/
+
+## Windows connection testing
+*.udl
