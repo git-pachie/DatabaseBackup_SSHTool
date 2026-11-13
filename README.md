@@ -90,12 +90,12 @@ dotnet user-secrets set "Sftp:HostKeyFingerprint" "SHA256:REPLACE_WITH_VERIFIED_
 dotnet user-secrets set "Sftp:RemoteDirectory" "/database-backups/sqlserver/"
 dotnet user-secrets set "Sftp:Password" "your-sftp-password"
 dotnet user-secrets set "Email:Enabled" "true"
-dotnet user-secrets set "Email:SmtpHost" "smtp.example.com"
+dotnet user-secrets set "Email:SmtpHost" "smtp.gmail.com"
 dotnet user-secrets set "Email:SmtpPort" "587"
 dotnet user-secrets set "Email:Security" "StartTls"
-dotnet user-secrets set "Email:From" "sqlbackup@example.com"
-dotnet user-secrets set "Email:SmtpUsername" "sqlbackup@example.com"
-dotnet user-secrets set "Email:SmtpPassword" "your-smtp-password"
+dotnet user-secrets set "Email:From" "your-app@gmail.com"
+dotnet user-secrets set "Email:SmtpUsername" "your-app@gmail.com"
+dotnet user-secrets set "Email:SmtpPassword" "your-gmail-app-password"
 dotnet user-secrets set "Email:Recipients:0" "dba@example.com"
 dotnet user-secrets set "Email:Recipients:1" "it-support@example.com"
 dotnet user-secrets set "Email:SendOnSuccess" "true"
@@ -127,13 +127,13 @@ dotnet user-secrets list
   },
   "Email": {
     "Enabled": true,
-    "SmtpHost": "smtp.example.com",
+    "SmtpHost": "smtp.gmail.com",
     "SmtpPort": 587,
     "Security": "StartTls",
-    "From": "sqlbackup@example.com",
+    "From": "your-app@gmail.com",
     "Recipients": ["dba@example.com", "it-support@example.com"],
-    "SmtpUsername": "sqlbackup@example.com",
-    "SmtpPassword": "your-smtp-password",
+    "SmtpUsername": "your-app@gmail.com",
+    "SmtpPassword": "your-gmail-app-password",
     "SendOnSuccess": true,
     "SendOnFailure": true,
     "AttachLogFile": true
@@ -144,6 +144,8 @@ dotnet user-secrets list
 ### Environment Variables (optional fallback)
 
 Passwords are stored in user secrets alongside the rest of the SFTP, Email, and SQL config. The environment variables below are an optional fallback for production deployments where user secrets are not available (e.g. running as a service).
+
+> **Gmail note:** Gmail requires an **App Password** (not your account password) when 2FA is enabled. Generate one at https://myaccount.google.com/apppasswords. Use your Gmail address as both `SmtpUsername` and `From`. Port 587 uses STARTTLS (`Security: "StartTls"`).
 
 | Variable | Required When | Description |
 |---|---|---|
