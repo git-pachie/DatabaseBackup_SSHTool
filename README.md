@@ -37,6 +37,7 @@ SqlBackupManager/
 | `Microsoft.Data.SqlClient` | SQL Server backup commands |
 | `SSH.NET` | SFTP upload with host-key verification |
 | `MailKit` | SMTP email (`UseSsl` toggles STARTTLS / implicit SSL) |
+| `SharpZipLib` | Password-protected (AES-256) ZIP creation |
 | `Serilog` + `Serilog.Sinks.File` | Per-run logging |
 | `Microsoft.Extensions.Configuration.UserSecrets` | Loads local user secrets |
 
@@ -86,10 +87,21 @@ Contains only paths, database names, and timeouts:
   },
   "Storage": {
     "LocalZipDirectory": "C:\\SqlBackupManager\\Zip",
-    "LogDirectory": "C:\\SqlBackupManager\\Logs"
+    "LogDirectory": "C:\\SqlBackupManager\\Logs",
+    "ZipPassword": "CHANGE_ME_ZIP_PASSWORD"
   }
 }
 ```
+
+#### ZIP password (`Storage:ZipPassword`)
+
+Every ZIP is encrypted with this single password, using **AES-256**. It is read from `appsettings.json`.
+
+- The value is **required**. The app refuses to start if it is empty or still `CHANGE_ME_ZIP_PASSWORD`.
+- **Do not commit your real password.** `appsettings.json` is tracked by git. Keep the placeholder in the repository and set the real value only in the copy on the server. To keep it out of that file entirely, put `Storage:ZipPassword` in `appsettings.secrets.json` or the `Storage__ZipPassword` environment variable, which override it.
+- **Keep the password somewhere safe.** If it is lost, the backups cannot be opened. Changing it does not re-encrypt ZIPs that already exist.
+- **Opening the ZIPs:** AES-256 ZIPs open with 7-Zip, WinZip and similar tools. Windows Explorer's built-in "Extract all" cannot open them.
+- The password is never written to logs or emails.
 
 ### 2. dotnet user secrets (sensitive)
 
@@ -302,12 +314,12 @@ SQL Server Agent monitors nonzero exit codes as job failure.
 
 ## Security Notes
 
-- **Never** put secrets in `appsettings.json` or commit them to source control. `secrets.sample.json` must only ever contain placeholders.
+- **Never** commit real secrets to source control. `secrets.sample.json` must only ever contain placeholders. `Storage:ZipPassword` lives in `appsettings.json`, so commit only the placeholder.
 - User secrets are plain text on disk. Restrict access to the Windows profile that holds them.
 - **Always** verify the SFTP host key fingerprint against a trusted out-of-band value.
 - **Never** use `TrustServerCertificate=True` as a production default for SQL connections.
 - `Email:SkipCertificateRevocationCheck` defaults to `true`. Set it to `false` if your network can reach the revocation servers and you want strict checking.
-- ZIP files are **not** encrypted. Use encryption at rest and in transit for backup files.
+- ZIP files are encrypted with AES-256 using `Storage:ZipPassword`. The temporary `.bak` files in the backup folder are **not** encrypted, so restrict access to that folder.
 - Passwords, private keys, tokens, and connection string secrets are redacted from all logs and email summaries.
 - The application does not delete `.bak`, `.zip`, or log files. A separate job handles cleanup/retention.
 

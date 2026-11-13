@@ -1,4 +1,4 @@
-using System.IO.Compression;
+using ICSharpCode.SharpZipLib.Zip;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlBackupManager.Configuration;
@@ -9,18 +9,24 @@ using SqlBackupManager.Models;
 namespace SqlBackupManager.Services;
 
 /// <summary>
-/// Creates ZIP archives from .bak files using streaming to avoid loading
-/// entire files into memory. Verifies archive integrity after creation.
+/// Creates password-protected (AES-256) ZIP archives from .bak files using streaming
+/// to avoid loading entire files into memory. Verifies archive integrity after creation
+/// by reopening it with the password and testing every entry.
 /// </summary>
 public sealed class ZipCompressionService : ICompressionService
 {
+    private const int BufferSize = 65536;
+
+    private readonly StorageOptions _options;
     private readonly ILogger<ZipCompressionService> _logger;
     private readonly BackupErrorHandler _errorHandler;
 
     public ZipCompressionService(
+        IOptions<StorageOptions> options,
         ILogger<ZipCompressionService> logger,
         BackupErrorHandler errorHandler)
     {
+        _options = options.Value;
         _logger = logger;
         _errorHandler = errorHandler;
     }
@@ -39,6 +45,15 @@ public sealed class ZipCompressionService : ICompressionService
             StartedAtUtc = DateTime.UtcNow
         };
 
+        var password = _options.ZipPassword;
+        if (string.IsNullOrEmpty(password))
+        {
+            return _errorHandler.CreateFailureResult(
+                result,
+                BackupStage.Zip,
+                "ZIP password is not configured. Set Storage:ZipPassword.");
+        }
+
         // Verify source file exists
         if (!File.Exists(bakFilePath))
         {
@@ -48,16 +63,17 @@ public sealed class ZipCompressionService : ICompressionService
                 $"Source .bak file not found: {bakFilePath}");
         }
 
+        var entryName = Path.GetFileName(bakFilePath);
+
         // Create ZIP using streaming (no full file load into memory)
         try
         {
             _logger.LogInformation(
-                "Creating ZIP for {DatabaseName}: {BakPath} -> {ZipPath}",
+                "Creating password-protected ZIP for {DatabaseName}: {BakPath} -> {ZipPath}",
                 databaseName,
                 bakFilePath,
                 zipFilePath);
 
-            // Ensure output directory exists
             var zipDir = Path.GetDirectoryName(zipFilePath);
             if (!string.IsNullOrEmpty(zipDir) && !Directory.Exists(zipDir))
             {
@@ -65,36 +81,46 @@ public sealed class ZipCompressionService : ICompressionService
             }
 
             var sourceFileInfo = new FileInfo(bakFilePath);
-            var entryName = Path.GetFileName(bakFilePath);
 
-            // Use FileStream for both source and output to stream without loading into memory
             await using (var sourceStream = new FileStream(
                 bakFilePath,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
-                bufferSize: 65536,
+                bufferSize: BufferSize,
                 useAsync: true))
             await using (var zipStream = new FileStream(
                 zipFilePath,
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None,
-                bufferSize: 65536,
+                bufferSize: BufferSize,
                 useAsync: true))
             {
-                using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false);
-                var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+                using var zipOut = new ZipOutputStream(zipStream)
+                {
+                    Password = password,
+                    // Backups can exceed 4 GB; always write Zip64 structures
+                    UseZip64 = UseZip64.On,
+                    IsStreamOwner = false
+                };
+                zipOut.SetLevel(6);
 
-                await using var entryStream = entry.Open();
-                await sourceStream.CopyToAsync(entryStream, 65536, cancellationToken);
+                var entry = new ZipEntry(entryName)
+                {
+                    DateTime = DateTime.Now,
+                    AESKeySize = 256
+                };
+
+                zipOut.PutNextEntry(entry);
+                await sourceStream.CopyToAsync(zipOut, BufferSize, cancellationToken);
+                zipOut.CloseEntry();
+                zipOut.Finish();
             }
 
             result.ZipFilePath = zipFilePath;
             result.BakFileSizeBytes = sourceFileInfo.Length;
-
-            var zipFileInfo = new FileInfo(zipFilePath);
-            result.ZipFileSizeBytes = zipFileInfo.Length;
+            result.ZipFileSizeBytes = new FileInfo(zipFilePath).Length;
 
             _logger.LogInformation(
                 "ZIP created for {DatabaseName}: {SizeBytes} bytes (from {BakSize} byte .bak)",
@@ -104,7 +130,7 @@ public sealed class ZipCompressionService : ICompressionService
         }
         catch (Exception ex)
         {
-            // Clean up partial ZIP if creation failed
+            // Remove a partial ZIP so it cannot be mistaken for a valid one
             if (File.Exists(zipFilePath))
             {
                 try { File.Delete(zipFilePath); }
@@ -114,43 +140,50 @@ public sealed class ZipCompressionService : ICompressionService
             return _errorHandler.CreateFailureResult(result, BackupStage.Zip, ex);
         }
 
-        // Verify ZIP integrity by reopening the archive and checking the entry
+        // Verify ZIP integrity: reopen with the password, check the entry, and test every CRC
         result.Stage = BackupStage.VerifyZip;
         try
         {
-            await using var verifyStream = new FileStream(
-                zipFilePath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 65536,
-                useAsync: true);
+            using var zipFile = new ZipFile(zipFilePath) { Password = password };
 
-            using var archive = new ZipArchive(verifyStream, ZipArchiveMode.Read);
-            var expectedEntryName = Path.GetFileName(bakFilePath);
-            var entry = archive.GetEntry(expectedEntryName);
-
+            var entry = zipFile.GetEntry(entryName);
             if (entry is null)
             {
                 return _errorHandler.CreateFailureResult(
                     result,
                     BackupStage.VerifyZip,
-                    $"ZIP verification failed: expected entry '{expectedEntryName}' not found in archive.");
+                    $"ZIP verification failed: expected entry '{entryName}' not found in archive.");
             }
 
-            if (entry.Length == 0)
+            if (entry.Size == 0)
             {
                 return _errorHandler.CreateFailureResult(
                     result,
                     BackupStage.VerifyZip,
-                    $"ZIP verification failed: entry '{expectedEntryName}' is empty.");
+                    $"ZIP verification failed: entry '{entryName}' is empty.");
+            }
+
+            if (!entry.IsCrypted || entry.AESKeySize != 256)
+            {
+                return _errorHandler.CreateFailureResult(
+                    result,
+                    BackupStage.VerifyZip,
+                    $"ZIP verification failed: entry '{entryName}' is not AES-256 encrypted.");
+            }
+
+            if (!zipFile.TestArchive(testData: true))
+            {
+                return _errorHandler.CreateFailureResult(
+                    result,
+                    BackupStage.VerifyZip,
+                    "ZIP verification failed: archive data test did not pass (wrong password or corrupt data).");
             }
 
             _logger.LogInformation(
-                "ZIP verified for {DatabaseName}: entry {Entry} is {SizeBytes} bytes",
+                "ZIP verified for {DatabaseName}: entry {Entry} is {SizeBytes} bytes, AES-256 encrypted",
                 databaseName,
-                expectedEntryName,
-                entry.Length);
+                entryName,
+                entry.Size);
         }
         catch (Exception ex)
         {

@@ -181,6 +181,11 @@ public static class Program
         else if (!PathValidator.EnsureWritableDirectory(storageOptions.LogDirectory, "Storage.LogDirectory"))
             errors.Add("Storage.LogDirectory is not writable.");
 
+        if (string.IsNullOrWhiteSpace(storageOptions.ZipPassword))
+            errors.Add("Storage.ZipPassword is not configured. Every ZIP must be password-protected.");
+        else if (storageOptions.ZipPassword == "CHANGE_ME_ZIP_PASSWORD")
+            errors.Add("Storage.ZipPassword is still the placeholder value. Set a real password in appsettings.json.");
+
         // SFTP validation
         var sftpOptions = config.GetSection(SftpOptions.SectionName).Get<SftpOptions>() ?? new SftpOptions();
 
