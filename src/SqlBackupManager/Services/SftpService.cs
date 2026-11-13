@@ -81,7 +81,12 @@ public sealed class SftpService : ISftpService
             var hostKeyVerified = false;
             sftp.HostKeyReceived += (_, e) =>
             {
-                if (IsFingerprintMatch(e.FingerPrintSHA256, _options.HostKeyFingerprint))
+                var actualFp = e.FingerPrintSHA256;
+                _logger.LogInformation(
+                    "SFTP server host key fingerprint (SHA256): {Fingerprint}",
+                    actualFp);
+
+                if (IsFingerprintMatch(actualFp, _options.HostKeyFingerprint))
                 {
                     hostKeyVerified = true;
                     e.CanTrust = true;
@@ -105,8 +110,9 @@ public sealed class SftpService : ISftpService
             {
                 throw new SshConnectionException(
                     "SSH host key fingerprint mismatch. The server presented a fingerprint that does not match " +
-                    "the configured HostKeyFingerprint. Verify the HostKeyFingerprint in configuration matches " +
-                    "the server's actual host key fingerprint.");
+                    "the configured HostKeyFingerprint. Check the log for the server's actual fingerprint (SHA256) " +
+                    "and update the 'Sftp:HostKeyFingerprint' secret to match. " +
+                    "You can include or omit the 'SHA256:' prefix — both formats are accepted.");
             }
 
             _logger.LogInformation(
@@ -311,14 +317,32 @@ public sealed class SftpService : ISftpService
 
     /// <summary>
     /// Compares the actual host key fingerprint against the expected fingerprint.
-    /// Both are normalized for comparison (trim, case-insensitive).
+    /// Both are normalized by stripping the "SHA256:" prefix (if present) and
+    /// compared case-insensitively.
     /// </summary>
     private static bool IsFingerprintMatch(string? actual, string expected)
     {
         if (string.IsNullOrEmpty(actual) || string.IsNullOrEmpty(expected))
             return false;
 
-        return string.Equals(actual.Trim(), expected.Trim(), StringComparison.OrdinalIgnoreCase);
+        // Strip the "SHA256:" prefix from both values — SSH.NET's FingerPrintSHA256
+        // does not include it, but users often configure it (e.g. from ssh-keyscan)
+        var normalizedActual = NormalizeFingerprint(actual);
+        var normalizedExpected = NormalizeFingerprint(expected);
+
+        return string.Equals(normalizedActual, normalizedExpected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Strips the "SHA256:" prefix and trims whitespace from a fingerprint string.
+    /// </summary>
+    private static string NormalizeFingerprint(string fingerprint)
+    {
+        var result = fingerprint.Trim();
+        if (result.StartsWith("SHA256:", StringComparison.OrdinalIgnoreCase))
+            result = result["SHA256:".Length..];
+
+        return result;
     }
 
     /// <summary>
