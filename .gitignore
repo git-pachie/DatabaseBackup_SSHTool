@@ -67,3 +67,6 @@ PublishProfiles/
 
 ## Windows connection testing
 *.udl
+
+## Local secrets file (real credentials, never commit)
+appsettings.secrets.json

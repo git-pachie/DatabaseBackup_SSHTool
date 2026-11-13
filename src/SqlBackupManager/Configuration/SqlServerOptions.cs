@@ -25,7 +25,8 @@ public sealed class SqlServerOptions
     public string BackupDirectoryOnSqlServer { get; set; } = string.Empty;
 
     /// <summary>
-    /// UNC share path that the application uses to read the same physical folder.
+    /// Path the application uses to read the same physical folder. A UNC share when SQL Server
+    /// is on another machine (\\server\share\...), or a local path (D:\...) when it runs on this machine.
     /// The application's Windows account must have read access.
     /// </summary>
     public string BackupDirectoryFromApp { get; set; } = string.Empty;

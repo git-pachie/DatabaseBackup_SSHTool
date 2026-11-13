@@ -49,10 +49,27 @@ Configuration sources are loaded in this order. **A later source overrides an ea
 | Order | Source | What goes here | Committed to git? |
 |---|---|---|---|
 | 1 | `appsettings.json` | Databases, backup paths, timeouts, ZIP/log directories | Yes |
-| 2 | dotnet user secrets | SQL connection string, **all** SFTP settings, **all** Email settings, **all passwords** | **No** |
-| 3 | Environment variables | Optional overrides of any key (see below) | No |
+| 2 | dotnet user secrets (**development machine**) | SQL connection string, **all** SFTP settings, **all** Email settings, **all passwords** | **No** |
+| 3 | `appsettings.secrets.json` next to the exe (**servers**) | Same keys as user secrets | **No** (git-ignored) |
+| 4 | Environment variables | Optional overrides of any key (see below) | No |
 
-All passwords (`Sftp:Password`, `Sftp:KeyPassphrase`, `Email:SmtpPassword`, `SqlServer:Password`) are stored in **user secrets**, next to the rest of their section. Environment variables are not required.
+All passwords (`Sftp:Password`, `Sftp:KeyPassphrase`, `Email:SmtpPassword`, `SqlServer:Password`) are stored with the rest of their section, either in user secrets (development) or `appsettings.secrets.json` (server).
+
+### Production servers: use `appsettings.secrets.json` (no .NET SDK needed)
+
+`dotnet user-secrets` is an SDK tool and only works inside a project folder. **Do not use it on a server.** Running it there fails with `No .NET SDKs were found`.
+
+On the server:
+
+1. Copy `appsettings.secrets.sample.json` next to `SqlBackupManager.exe` and rename it to `appsettings.secrets.json`.
+2. Replace every placeholder with your real value.
+3. Restrict the file with NTFS permissions so only the account that runs the job (and administrators) can read it.
+
+```powershell
+icacls "C:\SqlBackupManager\publish\appsettings.secrets.json" /inheritance:r /grant:r "Administrators:F" "DOMAIN\svc-sqlbackup:R"
+```
+
+The file is optional. It uses the same structure as `secrets.sample.json`. It is plain text and is excluded from git.
 
 ### 1. appsettings.json (non-sensitive)
 
@@ -258,9 +275,7 @@ Configure a SQL Server Agent job with a **CmdExec** job step pointing to the pub
    - Read access to the UNC backup share
    - Write access to the local ZIP and log directories
    - Access to the SFTP server and the SMTP server
-4. **Provide the secrets to that proxy account.** User secrets are stored per Windows account, so either:
-   - log in as the proxy account once and run the `dotnet user-secrets set` commands from the Setup section (requires the .NET SDK on that machine), or
-   - set the environment variables from the table above for that account.
+4. **Provide the secrets.** Create `appsettings.secrets.json` next to the exe (see "Production servers" above) and restrict it to the proxy account. Do not use `dotnet user-secrets` on the server. Environment variables also work, but SQL Server Agent must be restarted to see new machine-level variables.
 5. Create a SQL Server Agent job:
    - Type: **Operating system (CmdExec)**
    - Run as: **the proxy account** (not the SQL Server service account unless it has the permissions above)

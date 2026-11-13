@@ -26,7 +26,9 @@ public static class Program
         var configRoot = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-            .AddUserSecrets(System.Reflection.Assembly.GetExecutingAssembly())
+            .AddUserSecrets(System.Reflection.Assembly.GetExecutingAssembly(), optional: true)
+            // Optional secrets file for servers without the .NET SDK (never committed to git)
+            .AddJsonFile("appsettings.secrets.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
 
@@ -61,6 +63,15 @@ public static class Program
         try
         {
             Log.Information("Starting SQL Backup Manager, Run ID: {RunId}", runId);
+
+            // Help diagnose "not configured" errors: show where config is read from
+            var secretsFilePath = Path.Combine(AppContext.BaseDirectory, "appsettings.secrets.json");
+            Log.Information("Config directory: {BaseDirectory}", AppContext.BaseDirectory);
+            Log.Information(
+                File.Exists(secretsFilePath)
+                    ? "Secrets file found: {SecretsFile}"
+                    : "Secrets file NOT found (optional): {SecretsFile}",
+                secretsFilePath);
 
             // Validate configuration options
             var validationErrors = ValidateConfiguration(configRoot, storageOptions);
@@ -147,15 +158,17 @@ public static class Program
         if (sqlOptions.Databases.Count == 0)
             errors.Add("SqlServer.Databases is empty — no databases configured for backup.");
 
+        // BackupDirectoryOnSqlServer is a path on the SQL Server host. This machine may be a
+        // different PC, so it cannot be checked locally. SQL Server reports an error at backup time.
         if (string.IsNullOrWhiteSpace(sqlOptions.BackupDirectoryOnSqlServer))
             errors.Add("SqlServer.BackupDirectoryOnSqlServer is not configured.");
-        else if (!PathValidator.ValidateDirectory(sqlOptions.BackupDirectoryOnSqlServer, "SqlServer.BackupDirectoryOnSqlServer"))
-            errors.Add("SqlServer.BackupDirectoryOnSqlServer does not exist or is not accessible.");
 
+        // BackupDirectoryFromApp is how THIS machine reads the same folder: a UNC share when SQL Server
+        // is remote, or the same local path when SQL Server runs on this machine.
         if (string.IsNullOrWhiteSpace(sqlOptions.BackupDirectoryFromApp))
             errors.Add("SqlServer.BackupDirectoryFromApp is not configured.");
-        else if (!PathValidator.ValidateUncShare(sqlOptions.BackupDirectoryFromApp, "SqlServer.BackupDirectoryFromApp"))
-            errors.Add("SqlServer.BackupDirectoryFromApp UNC share is not accessible from this machine.");
+        else if (!PathValidator.ValidateDirectory(sqlOptions.BackupDirectoryFromApp, "SqlServer.BackupDirectoryFromApp"))
+            errors.Add("SqlServer.BackupDirectoryFromApp does not exist or is not accessible from this machine.");
 
         // Storage validation
         if (string.IsNullOrWhiteSpace(storageOptions.LocalZipDirectory))
