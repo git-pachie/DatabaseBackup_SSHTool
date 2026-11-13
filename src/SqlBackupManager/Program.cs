@@ -22,9 +22,11 @@ public static class Program
     public static async Task<int> Main(string[] args)
     {
         // Early configuration loading for Serilog setup
+        // User secrets override appsettings.json for sensitive values (SFTP, Email, ConnectionString)
         var configRoot = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .AddUserSecrets(System.Reflection.Assembly.GetExecutingAssembly())
             .AddEnvironmentVariables()
             .Build();
 
