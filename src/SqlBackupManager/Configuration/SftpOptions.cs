@@ -1,8 +1,7 @@
 namespace SqlBackupManager.Configuration;
 
 /// <summary>
-/// SFTP destination settings. Secrets (password, key passphrase) are never stored here;
-/// they come from environment variables at runtime.
+/// SFTP destination settings. Password and key passphrase are stored in user secrets.
 /// </summary>
 public sealed class SftpOptions
 {
@@ -36,26 +35,14 @@ public sealed class SftpOptions
     public string RemoteDirectory { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional: SFTP password for password authentication.
+    /// SFTP password for password authentication.
     /// Stored in user secrets. Required when PrivateKeyPath is null/empty.
     /// </summary>
     public string? Password { get; set; }
 
     /// <summary>
-    /// Optional: passphrase for the SSH private key.
+    /// Passphrase for the SSH private key.
     /// Stored in user secrets. Used when PrivateKeyPath is set and the key is passphrase-protected.
     /// </summary>
     public string? KeyPassphrase { get; set; }
-
-    /// <summary>
-    /// Optional: environment variable name for the SFTP password.
-    /// Defaults to "Sftp__Password".
-    /// </summary>
-    public string PasswordEnvVar { get; set; } = "Sftp__Password";
-
-    /// <summary>
-    /// Optional: environment variable name for the private key passphrase.
-    /// Defaults to "Sftp__KeyPassphrase".
-    /// </summary>
-    public string KeyPassphraseEnvVar { get; set; } = "Sftp__KeyPassphrase";
 }

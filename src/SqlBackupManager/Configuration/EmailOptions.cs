@@ -2,7 +2,7 @@ namespace SqlBackupManager.Configuration;
 
 /// <summary>
 /// SMTP email settings for the consolidated run-summary email.
-/// SMTP password is read from environment variable "Email__SmtpPassword".
+/// SMTP password is stored in user secrets alongside the rest of the Email config.
 /// </summary>
 public sealed class EmailOptions
 {

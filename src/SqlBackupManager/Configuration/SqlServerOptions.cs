@@ -48,12 +48,6 @@ public sealed class SqlServerOptions
     public string? Username { get; set; }
 
     /// <summary>
-    /// Optional: SQL password secret name. The actual password is read from
-    /// the environment variable <c>Sql__Password</c>.
-    /// </summary>
-    public string? PasswordSecretName { get; set; }
-
-    /// <summary>
     /// Optional: SQL password for SQL authentication. Stored in user secrets.
     /// </summary>
     public string? Password { get; set; }
