@@ -93,6 +93,7 @@ dotnet user-secrets set "Email:SmtpHost" "smtp.example.com"
 dotnet user-secrets set "Email:SmtpPort" "587"
 dotnet user-secrets set "Email:Security" "StartTls"
 dotnet user-secrets set "Email:From" "sqlbackup@example.com"
+dotnet user-secrets set "Email:SmtpUsername" "sqlbackup@example.com"
 dotnet user-secrets set "Email:Recipients:0" "dba@example.com"
 dotnet user-secrets set "Email:Recipients:1" "it-support@example.com"
 dotnet user-secrets set "Email:SendOnSuccess" "true"
@@ -128,6 +129,7 @@ dotnet user-secrets list
     "Security": "StartTls",
     "From": "sqlbackup@example.com",
     "Recipients": ["dba@example.com", "it-support@example.com"],
+    "SmtpUsername": "sqlbackup@example.com",
     "SendOnSuccess": true,
     "SendOnFailure": true,
     "AttachLogFile": true
