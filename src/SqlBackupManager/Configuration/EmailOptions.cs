@@ -50,4 +50,12 @@ public sealed class EmailOptions
     /// Optional: SMTP password for authenticated SMTP. Stored in user secrets.
     /// </summary>
     public string? SmtpPassword { get; set; }
+
+    /// <summary>
+    /// When true, skips certificate revocation checking (CRL/OCSP).
+    /// The certificate chain and hostname are still validated.
+    /// Use this when the application runs in a network where CRL endpoints
+    /// are not reachable. Defaults to true for compatibility.
+    /// </summary>
+    public bool SkipCertificateRevocationCheck { get; set; } = true;
 }

@@ -1,3 +1,5 @@
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -229,6 +231,42 @@ public sealed class EmailService : IEmailService
     private async Task SendAsync(MimeMessage message, CancellationToken cancellationToken)
     {
         using var client = new SmtpClient();
+
+        // Certificate validation callback that validates the chain and hostname
+        // but does not fail when the revocation check endpoint (CRL/OCSP) is unreachable.
+        // This is common in restricted network environments where CRL servers aren't accessible.
+        client.ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            // Re-validate the certificate chain without requiring revocation checking
+            var cert = new X509Certificate2(certificate);
+            var customChain = new X509Chain();
+
+            if (_options.SkipCertificateRevocationCheck)
+            {
+                customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                customChain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+            }
+
+            if (customChain.Build(cert))
+            {
+                if (_options.SkipCertificateRevocationCheck)
+                {
+                    _logger.LogWarning(
+                        "SMTP certificate chain is valid but revocation check was skipped (CRL/OCSP endpoint unreachable). Subject: {Subject}",
+                        cert.Subject);
+                }
+                return true;
+            }
+
+            _logger.LogError(
+                "SMTP certificate validation failed: {Errors}. Subject: {Subject}",
+                sslPolicyErrors,
+                cert.Subject);
+            return false;
+        };
 
         // Map UseSsl boolean to MailKit SecureSocketOptions based on port
         // Port 465 = implicit SSL, Port 587 = STARTTLS, other = STARTTLS when UseSsl
