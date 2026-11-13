@@ -243,14 +243,13 @@ public sealed class EmailService : IEmailService
         // Authenticate if username is configured
         if (!string.IsNullOrWhiteSpace(_options.SmtpUsername))
         {
-            var password = Environment.GetEnvironmentVariable(_options.SmtpPasswordEnvVar);
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(_options.SmtpPassword))
             {
                 throw new InvalidOperationException(
-                    $"SMTP authentication is configured but environment variable '{_options.SmtpPasswordEnvVar}' is not set.");
+                    "SMTP authentication is configured (SmtpUsername is set) but SmtpPassword is not configured in user secrets.");
             }
 
-            await client.AuthenticateAsync(_options.SmtpUsername, password, cancellationToken);
+            await client.AuthenticateAsync(_options.SmtpUsername, _options.SmtpPassword, cancellationToken);
         }
 
         await client.SendAsync(message, cancellationToken);

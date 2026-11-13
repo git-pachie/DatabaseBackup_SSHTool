@@ -52,4 +52,9 @@ public sealed class SqlServerOptions
     /// the environment variable <c>Sql__Password</c>.
     /// </summary>
     public string? PasswordSecretName { get; set; }
+
+    /// <summary>
+    /// Optional: SQL password for SQL authentication. Stored in user secrets.
+    /// </summary>
+    public string? Password { get; set; }
 }

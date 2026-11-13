@@ -36,6 +36,18 @@ public sealed class SftpOptions
     public string RemoteDirectory { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional: SFTP password for password authentication.
+    /// Stored in user secrets. Required when PrivateKeyPath is null/empty.
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// Optional: passphrase for the SSH private key.
+    /// Stored in user secrets. Used when PrivateKeyPath is set and the key is passphrase-protected.
+    /// </summary>
+    public string? KeyPassphrase { get; set; }
+
+    /// <summary>
     /// Optional: environment variable name for the SFTP password.
     /// Defaults to "Sftp__Password".
     /// </summary>

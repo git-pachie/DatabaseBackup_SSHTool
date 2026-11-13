@@ -234,16 +234,14 @@ public sealed class DatabaseBackupService : IDatabaseBackupService
         // If SQL credentials are configured, use them instead of integrated security
         if (!string.IsNullOrWhiteSpace(_options.Username))
         {
-            builder.UserID = _options.Username;
-
-            var password = Environment.GetEnvironmentVariable("Sql__Password");
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(_options.Password))
             {
                 throw new InvalidOperationException(
-                    "SQL authentication is configured (Username is set) but Sql__Password environment variable is not set.");
+                    "SQL authentication is configured (Username is set) but SqlServer:Password is not set in user secrets.");
             }
 
-            builder.Password = password;
+            builder.UserID = _options.Username;
+            builder.Password = _options.Password;
             builder.IntegratedSecurity = false;
         }
 

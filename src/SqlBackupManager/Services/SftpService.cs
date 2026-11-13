@@ -235,7 +235,7 @@ public sealed class SftpService : ISftpService
                     $"SFTP private key file not found: {_options.PrivateKeyPath}");
             }
 
-            var passphrase = Environment.GetEnvironmentVariable(_options.KeyPassphraseEnvVar);
+            var passphrase = _options.KeyPassphrase;
             var keyFile = string.IsNullOrEmpty(passphrase)
                 ? new PrivateKeyFile(_options.PrivateKeyPath)
                 : new PrivateKeyFile(_options.PrivateKeyPath, passphrase);
@@ -249,11 +249,11 @@ public sealed class SftpService : ISftpService
         else
         {
             // Password-based authentication
-            var password = Environment.GetEnvironmentVariable(_options.PasswordEnvVar);
+            var password = _options.Password;
             if (string.IsNullOrEmpty(password))
             {
                 throw new InvalidOperationException(
-                    $"SFTP password authentication is configured but environment variable '{_options.PasswordEnvVar}' is not set.");
+                    "SFTP password authentication is configured but Sftp:Password is not set in user secrets.");
             }
 
             _logger.LogInformation("Using SFTP password authentication for {Username}", _options.Username);
@@ -287,9 +287,8 @@ public sealed class SftpService : ISftpService
         }
         else
         {
-            var password = Environment.GetEnvironmentVariable(_options.PasswordEnvVar);
-            if (string.IsNullOrEmpty(password))
-                return $"SFTP password not set. Environment variable '{_options.PasswordEnvVar}' must be configured for password authentication.";
+            if (string.IsNullOrEmpty(_options.Password))
+                return "SFTP password not set. Add 'Sftp:Password' to user secrets.";
         }
 
         return null;

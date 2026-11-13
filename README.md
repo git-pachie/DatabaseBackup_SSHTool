@@ -88,12 +88,14 @@ dotnet user-secrets set "Sftp:Username" "backupuser"
 dotnet user-secrets set "Sftp:Authentication" "Auto"
 dotnet user-secrets set "Sftp:HostKeyFingerprint" "SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT"
 dotnet user-secrets set "Sftp:RemoteDirectory" "/database-backups/sqlserver/"
+dotnet user-secrets set "Sftp:Password" "your-sftp-password"
 dotnet user-secrets set "Email:Enabled" "true"
 dotnet user-secrets set "Email:SmtpHost" "smtp.example.com"
 dotnet user-secrets set "Email:SmtpPort" "587"
 dotnet user-secrets set "Email:Security" "StartTls"
 dotnet user-secrets set "Email:From" "sqlbackup@example.com"
 dotnet user-secrets set "Email:SmtpUsername" "sqlbackup@example.com"
+dotnet user-secrets set "Email:SmtpPassword" "your-smtp-password"
 dotnet user-secrets set "Email:Recipients:0" "dba@example.com"
 dotnet user-secrets set "Email:Recipients:1" "it-support@example.com"
 dotnet user-secrets set "Email:SendOnSuccess" "true"
@@ -120,7 +122,8 @@ dotnet user-secrets list
     "Username": "backupuser",
     "Authentication": "Auto",
     "HostKeyFingerprint": "SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT",
-    "RemoteDirectory": "/database-backups/sqlserver/"
+    "RemoteDirectory": "/database-backups/sqlserver/",
+    "Password": "your-sftp-password"
   },
   "Email": {
     "Enabled": true,
@@ -130,6 +133,7 @@ dotnet user-secrets list
     "From": "sqlbackup@example.com",
     "Recipients": ["dba@example.com", "it-support@example.com"],
     "SmtpUsername": "sqlbackup@example.com",
+    "SmtpPassword": "your-smtp-password",
     "SendOnSuccess": true,
     "SendOnFailure": true,
     "AttachLogFile": true
@@ -137,13 +141,13 @@ dotnet user-secrets list
 }
 ```
 
-### Environment Variables (passwords and passphrases)
+### Environment Variables (optional fallback)
 
-Set these in the environment running the application. Never put them in config files, user secrets, or code.
+Passwords are stored in user secrets alongside the rest of the SFTP, Email, and SQL config. The environment variables below are an optional fallback for production deployments where user secrets are not available (e.g. running as a service).
 
 | Variable | Required When | Description |
 |---|---|---|
-| `Sftp__Password` | SFTP password auth | SFTP password |
+| `Sftp__Password` | SFTP password auth | SFTP password (if not using user secrets) |
 | `Sftp__KeyPassphrase` | SFTP key auth + passphrase | SSH private key passphrase |
 | `Sql__Password` | SQL Server username auth | SQL Server password |
 | `Email__SmtpPassword` | SMTP username configured | SMTP password |

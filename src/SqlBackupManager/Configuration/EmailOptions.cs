@@ -46,8 +46,7 @@ public sealed class EmailOptions
     public string? SmtpUsername { get; set; }
 
     /// <summary>
-    /// Optional: environment variable name for the SMTP password.
-    /// Defaults to "Email__SmtpPassword".
+    /// Optional: SMTP password for authenticated SMTP. Stored in user secrets.
     /// </summary>
-    public string SmtpPasswordEnvVar { get; set; } = "Email__SmtpPassword";
+    public string? SmtpPassword { get; set; }
 }
