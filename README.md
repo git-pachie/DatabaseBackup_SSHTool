@@ -40,14 +40,19 @@ SqlBackupManager/
 
 ## Configuration
 
-All non-secret configuration is in `appsettings.json`. Secrets come from environment variables.
+Configuration is split across three layers:
 
-### appsettings.json
+1. **`appsettings.json`** — non-sensitive config (databases, paths, timeouts). Safe to commit.
+2. **dotnet user secrets** — sensitive config (SQL connection string, SFTP settings, email/SMTP settings). Stored locally, never committed.
+3. **Environment variables** — passwords and passphrases only.
+
+### appsettings.json (non-sensitive, committed)
+
+Contains only paths, database names, and timeouts:
 
 ```json
 {
   "SqlServer": {
-    "ConnectionString": "Server=SQLSERVER01;Database=master;Integrated Security=True;Encrypt=True;TrustServerCertificate=False;",
     "Databases": ["BSS", "OPS_DB", "TRM"],
     "BackupDirectoryOnSqlServer": "D:\\SQLBackups\\Temp",
     "BackupDirectoryFromApp": "\\\\SQLSERVER01\\SQLBackups$\\Temp",
@@ -57,13 +62,62 @@ All non-secret configuration is in `appsettings.json`. Secrets come from environ
   "Storage": {
     "LocalZipDirectory": "C:\\SqlBackupManager\\Zip",
     "LogDirectory": "C:\\SqlBackupManager\\Logs"
+  }
+}
+```
+
+### dotnet user secrets (sensitive, local only)
+
+The SQL connection string, SFTP settings, and Email/SMTP settings are stored in .NET user secrets, which live in `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json` and are never committed to source control.
+
+A sample secrets file is provided at `src/SqlBackupManager/secrets.sample.json`. Copy its structure to set up your own secrets.
+
+#### Setup
+
+From the project directory (`src/SqlBackupManager`):
+
+```powershell
+# Initialize user secrets (creates a UserSecretsId in the .csproj)
+dotnet user-secrets init
+
+# Set each secret value using dotnet user-secrets set
+dotnet user-secrets set "SqlServer:ConnectionString" "Server=SQLSERVER01;Database=master;Integrated Security=True;Encrypt=True;TrustServerCertificate=False;"
+dotnet user-secrets set "Sftp:Host" "sftp.example.com"
+dotnet user-secrets set "Sftp:Port" "22"
+dotnet user-secrets set "Sftp:Username" "backupuser"
+dotnet user-secrets set "Sftp:Authentication" "Auto"
+dotnet user-secrets set "Sftp:HostKeyFingerprint" "SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT"
+dotnet user-secrets set "Sftp:RemoteDirectory" "/database-backups/sqlserver/"
+dotnet user-secrets set "Email:Enabled" "true"
+dotnet user-secrets set "Email:SmtpHost" "smtp.example.com"
+dotnet user-secrets set "Email:SmtpPort" "587"
+dotnet user-secrets set "Email:Security" "StartTls"
+dotnet user-secrets set "Email:From" "sqlbackup@example.com"
+dotnet user-secrets set "Email:Recipients:0" "dba@example.com"
+dotnet user-secrets set "Email:Recipients:1" "it-support@example.com"
+dotnet user-secrets set "Email:SendOnSuccess" "true"
+dotnet user-secrets set "Email:SendOnFailure" "true"
+dotnet user-secrets set "Email:AttachLogFile" "true"
+```
+
+Verify they are set:
+
+```powershell
+dotnet user-secrets list
+```
+
+#### Sample secrets structure (`secrets.sample.json`)
+
+```json
+{
+  "SqlServer": {
+    "ConnectionString": "Server=SQLSERVER01;Database=master;Integrated Security=True;Encrypt=True;TrustServerCertificate=False;"
   },
   "Sftp": {
     "Host": "sftp.example.com",
     "Port": 22,
     "Username": "backupuser",
     "Authentication": "Auto",
-    "PrivateKeyPath": null,
     "HostKeyFingerprint": "SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT",
     "RemoteDirectory": "/database-backups/sqlserver/"
   },
@@ -81,9 +135,9 @@ All non-secret configuration is in `appsettings.json`. Secrets come from environ
 }
 ```
 
-### Environment Variables (Secrets)
+### Environment Variables (passwords and passphrases)
 
-Set these in the environment running the application. Never put them in config files or code.
+Set these in the environment running the application. Never put them in config files, user secrets, or code.
 
 | Variable | Required When | Description |
 |---|---|---|
